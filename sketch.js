@@ -1,11 +1,14 @@
 let pointCloudShader;
 let vertices = [];
+let vertexLength = 0;
 let renderer;
 
 let cam;
 
-let cloud = null;
-let gid = "cloud";
+let gl;
+let vertex_buffer;
+let dataLoaded = false;
+let shaderProgram;
 
 function preload(){
   pointCloudShader = loadShader('shader/pointVertex.glsl', 'shader/pointColor.glsl');
@@ -22,45 +25,44 @@ function setup() {
     n = n || o.renderer,
     n && (this.camEYE = this.getPosition(this.camEYE), this.camLAT = this.getCenter(this.camLAT), this.camRUP = this.getUpVector(this.camRUP), n._curCamera.camera(this.camEYE[0], this.camEYE[1], this.camEYE[2], this.camLAT[0], this.camLAT[1], this.camLAT[2], this.camRUP[0], this.camRUP[1], this.camRUP[2]))
   };
-  cam = createEasyCam();
+  //cam = createEasyCam();
 
-  loadStrings("bun_zipper_points.ply", loadPointCloud);
+  // load pointcloud from file
+  var client = new XMLHttpRequest();
+  client.open('GET', 'bun_zipper_points.ply');
+  client.onreadystatechange = function() {
+    loadPointCloud(client.responseText);
+  }
+  client.send();
+
+  gl = renderer.GL;
 }
 
 function draw() {
 	//shader(pointCloudShader);
-  background(64);
-  fill(255);
+  //background(64);
 
-  strokeWeight(0.1);
-  stroke(255);
-
-  // render points
-  //translate(0, 250, 0);
-  //scale(2500);
-  /*
-  for(var i = 0; i < vertices.length; i += 15)
+  if(dataLoaded)
   {
-    let v = vertices[i];
-      point(v.x, v.y, v.z);
+    renderCloud();
   }
-  */
+}
 
-  /*
-  renderer._usePointShader();
-  renderer.curPointShader.bindShader();
+function renderCloud()
+{
+  gl.useProgram(shaderProgram);
 
-  renderer._drawPoints(vertices, renderer._pointVertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+  var coord = gl.getAttribLocation(shaderProgram, "coordinates");
+  gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(coord);
 
-  renderer.curPointShader.unbindShader();
-  */
+  gl.clearColor(0.1, 0.1, 0.1, 0.9);
+  gl.enable(gl.DEPTH_TEST);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.viewport(0, 0 , renderer.width, renderer.height);
 
-  //displayHUD();
-  if(cloud != null)
-  {
-    renderer.createBuffers(gid, cloud);
-    renderer.drawBuffers(gid);
-  }
+  gl.drawArrays(gl.POINTS, 0, vertexLength);
 }
 
 function displayHUD()
@@ -82,7 +84,7 @@ function windowResized(){
 function loadPointCloud(lines)
 {
     let header = true;
-    for (var i = 0; i < lines.length; i++) {
+    for (var i = 0; i < lines.length - 1; i++) {
       if(lines[i].includes("end_header"))
       {
         header = false;
@@ -97,21 +99,67 @@ function loadPointCloud(lines)
         let y = -parseFloat(data[1]);
         let z = parseFloat(data[2]);
 
-        vertices.push(new p5.Vector(x, y, z));
+        //vertices.push(new p5.Vector(x, y, z));
+
+        if(x === NaN || y === NaN || z === NaN)
+        {
+          continue;
+        }
+
+        vertices.push(x);
+        vertices.push(y);
+        vertices.push(z);
       }
     }
 
-    cloud = box(100);
-    
-    // create cloud
-    /*
-    cloud = beginShape(POINTS);
-    for(var i = 0; i < vertices.length; i += 15)
-    {
-        cloud.vertex(vertices[i].x, vertices[i].y, vertices[i].z);
-    }
-    cloud.endShape();
-    */
+    vertices = [
+         -0.5,0.5,0.0,
+         0.0,0.5,0.0,
+         -0.25,0.25,0.0, ];
+
+    vertexLength = vertices.length / 3;
+
+    setupCloud();
+}
+
+function setupCloud()
+{
+  // create geometry
+  vertex_buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+  // create shader
+  let vertCode =
+    'attribute vec3 coordinates;' +
+
+    'void main(void) {' +
+       ' gl_Position = vec4(coordinates, 1.0);' +
+       'gl_PointSize = 10.0;'+
+    '}';
+
+  let vertShader = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vertShader, vertCode);
+  gl.compileShader(vertShader);
+
+  let fragCode =
+    'void main(void) {' +
+       ' gl_FragColor = vec4(0.0, 0.0, 0.0, 0.1);' +
+    '}';
+
+  let fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fragShader, fragCode);
+  gl.compileShader(fragShader);
+
+  shaderProgram = gl.createProgram();
+  gl.attachShader(shaderProgram, vertShader); 
+  gl.attachShader(shaderProgram, fragShader);
+  gl.linkProgram(shaderProgram);
+  gl.useProgram(shaderProgram);
+
+  dataLoaded = true;
+  console.log("data loaded: " + vertexLength + " points");
 }
 
 
