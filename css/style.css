@@ -40,6 +40,11 @@ body{
   color: rgb(96, 96, 96);
 }
 
+.stop-scrolling {
+  height: 100%;
+  overflow: hidden;
+}
+
 #Dw-Canvas,
 #DwCanvas{
   z-index : 0;

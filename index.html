@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
   
   <script src="lib/gl-matrix-2.4.0/gl-matrix-min.js"></script>
-  <!-- <script src="../lib/dat.gui-0.6.5/dat.gui.min.js"></script> -->
+  <script src="../lib/dat.gui-0.6.5/dat.gui.min.js"></script>
   
   <script src="dwgl/dw_gl.js"></script>
   <script src="dwgl/dw_utils.js"></script>
@@ -44,14 +44,19 @@
   
   uniform mat4 m4_projection;
   uniform mat4 m4_modelview;
+  uniform float time;
+  uniform float pointSize;
   
   out vec3 vcol;
   
   void main(){
-    gl_Position = m4_projection * m4_modelview * vec4(pos, 1);
-    gl_PointSize = 2.0f;
+    float l = (col.r * 0.3) + (col.g * 0.59) + (col.b * 0.11);
 
     vcol = col;
+
+    gl_Position = m4_projection * m4_modelview * vec4(pos, 1);
+    gl_PointSize = pointSize;
+
   }
 </script>
 
@@ -68,13 +73,13 @@
   out vec4 fragcol;
   
   void main(){
-    fragcol = vec4(vcol * 2.0, 1);
+    fragcol = vec4(vcol * 1.0, 1);
   }
 </script>
 
     
 </head>
-<body>
+<body class="stop-scrolling">
 
   <div id="hud">
     <div id="sketch-title"></div>
@@ -108,6 +113,21 @@
       var easycam;
 
       var dataLoaded = false;
+
+      var gui;
+
+      var pcSettings = {
+            pointSize : 1.0,
+      };
+
+      var initGUI = function(){
+        gui = new dat.GUI();
+        
+        var settings = gui.addFolder('PointCloud');
+        var pointSize = settings.add(pcSettings, 'pointSize', 1.0, 10.00);
+        //settings.add(pcSettings, 'db'   , 0.01, 1.00  ); 
+        settings.open();
+      }
       
       app.init = function(){
         console.log(this);
@@ -130,8 +150,10 @@
         
         shader = new Dw.Shader(gl, {vs:vs, fs:fs});
 
+        initGUI();
+
         // load data
-        fetch('data/forest-blk360_centered.ply')
+        fetch('data/caumasee_scan_midres.ply')
         .then(response => response.text())
         .then((data) => {
           loadPointCloud(data);
@@ -170,8 +192,12 @@
         if(dataLoaded)
         {
           shader.begin();
+
           shader.uniformM('m4_projection', m4_projection);
           shader.uniformM('m4_modelview', m4_modelview);
+          shader.uniformF('time', [+new Date()]);
+          shader.uniformF('pointSize', pcSettings['pointSize'])
+
           shader.attributeF('pos', rect_pos);
           shader.attributeF('col', rect_col);
           gl.drawArrays(gl.POINTS, 0, rect_pos.vtxCount);
@@ -192,6 +218,7 @@
         var stats = '';
         stats += 'wh: '+w+'/'+h+' | ';
         stats += 'pts: ' + vertexLength + ' | ';
+        stats += 'time: ' + (+new Date()) + ' | '
         stats += 'fps: '+fps.toFixed(2);
         document.getElementById('sketch-stats').textContent = stats;
       }
