@@ -153,7 +153,7 @@
         initGUI();
 
         // load data
-        fetch('data/caumasee_scan_midres.ply')
+        fetch('data/forest-blk360_centered.ply')
         .then(response => response.text())
         .then((data) => {
           loadPointCloud(data);
